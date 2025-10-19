@@ -159,11 +159,11 @@ def general_search(
 
     if strategy_name == "BFS":
         # TODO: Initialize frontier for BFS (FIFO queue)
-        pass
+        frontier = deque([initial_state])
 
     elif strategy_name == "DFS":
         # TODO: Initialize frontier for DFS (LIFO stack)
-        pass
+        frontier = deque([initial_state])
 
     elif strategy_name == "A*":
         # TODO: Initialize frontier for A* (priority queue ordered by f(n) = g(n) + h(n))
@@ -190,10 +190,10 @@ def general_search(
         # STRATEGY-SPECIFIC: Remove a node from the frontier
         if strategy_name == "BFS":
             # TODO: Pop from the left (FIFO)
-            node = None
+            node = frontier.popleft()
         elif strategy_name == "DFS":
             # TODO: Pop from the right (LIFO)
-            node = None
+            node = frontier.pop()
         elif strategy_name == "A*":
             # TODO: Pop the node with lowest f(n) = cost + heuristic
             node = None
@@ -228,7 +228,7 @@ def general_search(
                 # STRATEGY-SPECIFIC: Add child to frontier
                 if strategy_name == "BFS" or strategy_name == "DFS":
                     # TODO: Append child to frontier
-                    pass
+                    frontier.append(child)
                 elif strategy_name == "A*":
                     # TODO: Add child with priority = child.cost + heuristic(child)
                     pass
@@ -262,7 +262,7 @@ def reconstruct_path(state: PuzzleState) -> List[str]:
 
 if __name__ == "__main__":
     # Choose your puzzle difficulty
-    initial = EASY_INITIAL_STATE  # Try MEDIUM_INITIAL_STATE or HARD_INITIAL_STATE too!
+    initial = HARD_INITIAL_STATE  # Try MEDIUM_INITIAL_STATE or HARD_INITIAL_STATE too!
 
     print("Initial State:")
     print(initial)
@@ -270,7 +270,7 @@ if __name__ == "__main__":
     print(GOAL_STATE)
 
     # Choose your strategy: "BFS", "DFS", "A*", or your own!
-    result = general_search("BFS", initial)
+    result = general_search("DFS", initial)
 
     if result:
         path = reconstruct_path(result)
