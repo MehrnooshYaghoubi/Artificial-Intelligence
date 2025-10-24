@@ -166,6 +166,119 @@ def heuristic(state: PuzzleState) -> int:
 
 
 # ------------------------------------------------------------
+# 🧠 CREATIVE STRATEGY: Memory-Guided A*
+# ------------------------------------------------------------
+
+
+def memory_guided_astar(initial_state: PuzzleState) -> Optional[PuzzleState]:
+    """
+    🧠 MEMORY-GUIDED A* 🧠
+
+    A smart twist on A* that "remembers" which moves tend to work well!
+
+    The idea: Track which actions (UP/DOWN/LEFT/RIGHT) successfully reduce
+    the heuristic value. Give bonus priority to actions that have historically
+    worked well. This creates a "learned preference" without complex ML.
+
+    It's like a puzzle solver who notices "hey, moving UP has been helpful
+    lately, let me try that first!"
+
+    Benefits:
+    - Learns patterns during the search itself
+    - Guides exploration toward historically successful moves
+    - Still optimal (uses A* with tie-breaking, not modifying f-values)
+    - Simple concept: "remember what worked before"
+    """
+
+    print("\nUsing MEMORY-GUIDED A* - Learning as we search!\n")
+
+    # Track success rate of each action
+    action_successes = {"UP": 0, "DOWN": 0, "LEFT": 0, "RIGHT": 0}
+    action_attempts = {"UP": 0, "DOWN": 0, "LEFT": 0, "RIGHT": 0}
+
+    frontier = []
+    explored = set()
+    frontier_set = set()
+    counter = 0
+    nodes_traversed = 0
+    nodes_expanded = 0
+
+    # Start with initial state
+    f_value = initial_state.cost + heuristic(initial_state)
+    heapq.heappush(frontier, (f_value, 0, counter, initial_state))
+    frontier_set.add(initial_state)
+
+    while frontier:
+        _, _, _, node = heapq.heappop(frontier)
+        frontier_set.discard(node)
+
+        nodes_traversed += 1
+
+        # Show action statistics every 10 nodes
+        if nodes_traversed % 10 == 0:
+            print(f"\nAction Success Rates after {nodes_traversed} nodes:")
+            for action in ACTIONS:
+                if action_attempts[action] > 0:
+                    success_rate = action_successes[action] / action_attempts[action]
+                    print(
+                        f"  {action}: {success_rate:.2%} ({action_successes[action]}/{action_attempts[action]})"
+                    )
+
+        print(f"\nTraversed Node #{nodes_traversed}:")
+        print(node)
+        print()
+
+        if goal_test(node):
+            print("\nGoal found!")
+            print(f"Total Nodes Traversed: {nodes_traversed}")
+            print(f"Total Nodes Expanded: {nodes_expanded}")
+            print("\nFinal Action Statistics:")
+            for action in ACTIONS:
+                if action_attempts[action] > 0:
+                    success_rate = action_successes[action] / action_attempts[action]
+                    print(f"  {action}: {success_rate:.2%}")
+            return node
+
+        explored.add(node)
+
+        # Expand
+        parent_h = heuristic(node)
+        successors = successor_function(node)
+        nodes_expanded += 1
+
+        for action, child in successors:
+            if child not in explored and child not in frontier_set:
+                # Track if this action improved heuristic
+                child_h = heuristic(child)
+                action_attempts[action] += 1
+
+                if child_h < parent_h:
+                    action_successes[action] += 1
+
+                # Calculate priority with learned bias
+                f_value = child.cost + child_h
+
+                # Calculate success rate for tie-breaking (higher = better)
+                if action_attempts[action] > 0:
+                    success_rate = action_successes[action] / action_attempts[action]
+                else:
+                    success_rate = 0.5
+
+                # Use negative success rate so higher success = higher priority
+                # Multiply by 100 to make it significant for tie-breaking
+                tie_breaker = -int(success_rate * 100)
+
+                counter += 1
+                heapq.heappush(frontier, (f_value, tie_breaker, counter, child))
+                frontier_set.add(child)
+
+    print("Search failed. No solution found.")
+    print(f"Total Nodes Traversed: {nodes_traversed}")
+    print(f"Total Nodes Expanded: {nodes_expanded}")
+    return None
+
+
+# ------------------------------------------------------------
 # General Search Algorithm
 # ------------------------------------------------------------
 
@@ -214,6 +327,10 @@ def general_search(
         f_value = initial_state.cost + heuristic(initial_state)
         frontier = [(f_value, counter, initial_state)]
         frontier_set.add(initial_state)
+
+    elif strategy_name == "MEMORY_GUIDED":
+        # 🧠 Call the memory-guided A* implementation
+        return memory_guided_astar(initial_state)
 
     # --------------------------------------------------------
     # 💡 EXTENDING WITH NEW STRATEGIES
@@ -323,7 +440,7 @@ if __name__ == "__main__":
     print(GOAL_STATE)
 
     # Choose your strategy: "BFS", "DFS", "A*", or your own!
-    result = general_search("A*", initial)
+    result = general_search("MEMORY_GUIDED", initial)
 
     if result:
         path = reconstruct_path(result)
