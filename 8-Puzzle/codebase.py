@@ -14,6 +14,7 @@ sections below.
 """
 
 import copy
+import heapq
 from typing import List, Tuple, Optional
 from collections import deque
 
@@ -47,6 +48,10 @@ class PuzzleState:
             [f"{self.tiles[0:3]}", f"{self.tiles[3:6]}", f"{self.tiles[6:9]}"]
         )
 
+    def __lt__(self, other):
+        """For heap comparisons in A* - compare by f(n) values"""
+        return (self.cost + heuristic(self)) < (other.cost + heuristic(other))
+
 
 # ------------------------------------------------------------
 # Initial States (by Difficulty) and Goal State
@@ -65,6 +70,12 @@ GOAL_STATE = [1, 2, 3, 4, 5, 6, 7, 8, 0]
 # ------------------------------------------------------------
 
 ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT"]
+
+# Pre-compute goal positions for heuristic calculation
+GOAL_POSITIONS = {}
+for i, tile in enumerate(GOAL_STATE):
+    if tile != 0:
+        GOAL_POSITIONS[tile] = divmod(i, 3)
 
 
 def successor_function(state: PuzzleState) -> List[Tuple[str, PuzzleState]]:
@@ -116,12 +127,42 @@ def goal_test(state: PuzzleState) -> bool:
 # ------------------------------------------------------------
 
 
+def heuristic_chebyshev(state: PuzzleState) -> int:
+    """
+    IMPLEMENTATION of the Chebyshev Heuristic:
+    2 * max(horizontal distance, vertical distance) summed over all tiles.
+    This heuristic is more informed than the Manhattan distance.
+    """
+    h_c = 0
+
+    # Iterate through the 9 tiles (indices 0 to 8)
+    for i, tile in enumerate(state.tiles):
+        # Skip the blank tile (0) as its position doesn't affect the goal state
+        if tile == 0:
+            continue
+
+        # Get the tile's current position (r_current, c_current)
+        r_current, c_current = divmod(i, 3)
+
+        # Get the tile's goal position (r_goal, c_goal)
+        r_goal, c_goal = GOAL_POSITIONS[tile]
+
+        # Calculate horizontal and vertical distances
+        delta_x = abs(c_current - c_goal)
+        delta_y = abs(r_current - r_goal)
+
+        # Calculate the Chebyshev distance: max(dx, dy)
+        chebyshev_distance = max(delta_x, delta_y)
+
+        # Calculate the Chebyshev heuristic contribution: 2 * chebyshev_distance
+        # The paper uses 2*Chebyshev distance as the heuristic
+        h_c += 2 * chebyshev_distance
+
+    return h_c
+
+
 def heuristic(state: PuzzleState) -> int:
-    """
-    TODO: Implement a heuristic function for A*.
-    Must return an integer estimate of the cost from `state` to the goal.
-    """
-    pass
+    return heuristic_chebyshev(state)
 
 
 # ------------------------------------------------------------
@@ -150,6 +191,7 @@ def general_search(
     nodes_traversed = 0
     nodes_expanded = 0
     frontier = None
+    frontier_set = set()  # For A*, track states in frontier for duplicate checking
 
     # --------------------------------------------------------
     # STRATEGY-SPECIFIC SECTION
@@ -167,7 +209,11 @@ def general_search(
 
     elif strategy_name == "A*":
         # TODO: Initialize frontier for A* (priority queue ordered by f(n) = g(n) + h(n))
-        pass
+        # counter ensures FIFO ordering for ties
+        counter = 0
+        f_value = initial_state.cost + heuristic(initial_state)
+        frontier = [(f_value, counter, initial_state)]
+        frontier_set.add(initial_state)
 
     # --------------------------------------------------------
     # 💡 EXTENDING WITH NEW STRATEGIES
@@ -196,7 +242,9 @@ def general_search(
             node = frontier.pop()
         elif strategy_name == "A*":
             # TODO: Pop the node with lowest f(n) = cost + heuristic
-            node = None
+            # Pop the node with lowest f(n) = cost + heuristic
+            _, _, node = heapq.heappop(frontier)
+            frontier_set.discard(node)
 
         # 💡For custom strategies, add your pop logic here
 
@@ -231,7 +279,12 @@ def general_search(
                     frontier.append(child)
                 elif strategy_name == "A*":
                     # TODO: Add child with priority = child.cost + heuristic(child)
-                    pass
+                    # Only add if not already in frontier or if we found a better path
+                    if child not in frontier_set:
+                        counter += 1
+                        f_value = child.cost + heuristic(child)
+                        heapq.heappush(frontier, (f_value, counter, child))
+                        frontier_set.add(child)
 
                 # 💡For custom strategies, handle insertion here
 
@@ -270,7 +323,7 @@ if __name__ == "__main__":
     print(GOAL_STATE)
 
     # Choose your strategy: "BFS", "DFS", "A*", or your own!
-    result = general_search("DFS", initial)
+    result = general_search("A*", initial)
 
     if result:
         path = reconstruct_path(result)
