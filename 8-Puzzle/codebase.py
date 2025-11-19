@@ -17,6 +17,9 @@ import copy
 import heapq
 from typing import List, Tuple, Optional
 from collections import deque
+import matplotlib.pyplot as plt
+import numpy as np
+import time
 
 # ------------------------------------------------------------
 # State Representation
@@ -161,6 +164,38 @@ def heuristic_chebyshev(state: PuzzleState) -> int:
     return h_c
 
 
+def heuristic_manhattan(state: PuzzleState) -> int:
+    """
+    Manhattan Distance Heuristic:
+    Sum of the horizontal and vertical distances of each tile from its goal position.
+    Also known as "taxicab distance" or "L1 distance".
+
+    This is admissible because it never overestimates the cost to reach the goal.
+    Each tile must move at least its Manhattan distance to reach its goal position.
+    """
+    h_m = 0
+
+    # Iterate through the 9 tiles (indices 0 to 8)
+    for i, tile in enumerate(state.tiles):
+        # Skip the blank tile (0) as its position doesn't affect the goal
+        if tile == 0:
+            continue
+
+        # Get the tile's current position (row, column)
+        r_current, c_current = divmod(i, 3)
+
+        # Get the tile's goal position (row, column)
+        r_goal, c_goal = GOAL_POSITIONS[tile]
+
+        # Calculate Manhattan distance: |x1 - x2| + |y1 - y2|
+        manhattan_distance = abs(r_current - r_goal) + abs(c_current - c_goal)
+
+        # Add to total heuristic value
+        h_m += manhattan_distance
+
+    return h_m
+
+
 def heuristic(state: PuzzleState) -> int:
     return heuristic_chebyshev(state)
 
@@ -172,29 +207,43 @@ def heuristic(state: PuzzleState) -> int:
 
 def memory_guided_astar(initial_state: PuzzleState) -> Optional[PuzzleState]:
     """
-    🧠 MEMORY-GUIDED A* 🧠
+    MEMORY-GUIDED A*
 
-    A smart twist on A* that "remembers" which moves tend to work well!
+    A twist on A* with balanced exploration-exploitation!
 
     The idea: Track which actions (UP/DOWN/LEFT/RIGHT) successfully reduce
-    the heuristic value. Give bonus priority to actions that have historically
-    worked well. This creates a "learned preference" without complex ML.
+    the heuristic value, BUT use an "optimism bonus" for under-explored
+    actions. This is inspired by the UCB (Upper Confidence Bound) algorithm
+    used in multi-armed bandits and AlphaGo!
 
-    It's like a puzzle solver who notices "hey, moving UP has been helpful
-    lately, let me try that first!"
+    Formula: score = success_rate + exploration_bonus
+    where exploration_bonus = sqrt(2 * ln(total_attempts) / action_attempts)
+
+    This ensures:
+    - Actions that work well are favored (exploitation)
+    - Under-tried actions get a chance (exploration)
+    - The balance shifts over time (adaptive)
+
+    It's like being optimistic about things you haven't tried much yet!
 
     Benefits:
-    - Learns patterns during the search itself
-    - Guides exploration toward historically successful moves
-    - Still optimal (uses A* with tie-breaking, not modifying f-values)
-    - Simple concept: "remember what worked before"
+    - Balances exploration and exploitation automatically
+    - Still optimal (only affects tie-breaking in A*)
+    - Simple yet theoretically grounded (UCB principle)
+    - Nobody else would think of this for 8-puzzle!
     """
+    import math
 
-    print("\nUsing MEMORY-GUIDED A* - Learning as we search!\n")
+    print("\nUsing MEMORY-GUIDED A* with UCB exploration!\n")
 
     # Track success rate of each action
     action_successes = {"UP": 0, "DOWN": 0, "LEFT": 0, "RIGHT": 0}
-    action_attempts = {"UP": 0, "DOWN": 0, "LEFT": 0, "RIGHT": 0}
+    action_attempts = {
+        "UP": 1,
+        "DOWN": 1,
+        "LEFT": 1,
+        "RIGHT": 1,
+    }  # Start at 1 to avoid division by zero
 
     frontier = []
     explored = set()
@@ -216,13 +265,17 @@ def memory_guided_astar(initial_state: PuzzleState) -> Optional[PuzzleState]:
 
         # Show action statistics every 10 nodes
         if nodes_traversed % 10 == 0:
-            print(f"\nAction Success Rates after {nodes_traversed} nodes:")
+            total_attempts = sum(action_attempts.values())
+            print(f"\n📊 Action Statistics after {nodes_traversed} nodes:")
             for action in ACTIONS:
-                if action_attempts[action] > 0:
-                    success_rate = action_successes[action] / action_attempts[action]
-                    print(
-                        f"  {action}: {success_rate:.2%} ({action_successes[action]}/{action_attempts[action]})"
-                    )
+                success_rate = action_successes[action] / action_attempts[action]
+                exploration_bonus = math.sqrt(
+                    2 * math.log(total_attempts) / action_attempts[action]
+                )
+                ucb_score = success_rate + exploration_bonus
+                print(
+                    f"  {action}: Success={success_rate:.2%} + Explore={exploration_bonus:.3f} = UCB={ucb_score:.3f}"
+                )
 
         print(f"\nTraversed Node #{nodes_traversed}:")
         print(node)
@@ -232,11 +285,17 @@ def memory_guided_astar(initial_state: PuzzleState) -> Optional[PuzzleState]:
             print("\nGoal found!")
             print(f"Total Nodes Traversed: {nodes_traversed}")
             print(f"Total Nodes Expanded: {nodes_expanded}")
+
+            total_attempts = sum(action_attempts.values())
             print("\nFinal Action Statistics:")
             for action in ACTIONS:
-                if action_attempts[action] > 0:
-                    success_rate = action_successes[action] / action_attempts[action]
-                    print(f"  {action}: {success_rate:.2%}")
+                success_rate = action_successes[action] / action_attempts[action]
+                exploration_bonus = math.sqrt(
+                    2 * math.log(total_attempts) / action_attempts[action]
+                )
+                print(
+                    f"  {action}: {success_rate:.2%} (tried {action_attempts[action]} times, bonus={exploration_bonus:.3f})"
+                )
             return node
 
         explored.add(node)
@@ -252,21 +311,22 @@ def memory_guided_astar(initial_state: PuzzleState) -> Optional[PuzzleState]:
                 child_h = heuristic(child)
                 action_attempts[action] += 1
 
-                if child_h < parent_h:
+                if child_h < parent_h:  # actually improve huristic
                     action_successes[action] += 1
 
-                # Calculate priority with learned bias
+                # Calculate priority with UCB
                 f_value = child.cost + child_h
 
-                # Calculate success rate for tie-breaking (higher = better)
-                if action_attempts[action] > 0:
-                    success_rate = action_successes[action] / action_attempts[action]
-                else:
-                    success_rate = 0.5
+                # Calculate UCB score: success_rate + exploration_bonus
+                total_attempts = sum(action_attempts.values())
+                success_rate = action_successes[action] / action_attempts[action]
+                exploration_bonus = math.sqrt(
+                    2 * math.log(total_attempts) / action_attempts[action]
+                )
+                ucb_score = success_rate + exploration_bonus
 
-                # Use negative success rate so higher success = higher priority
-                # Multiply by 100 to make it significant for tie-breaking
-                tie_breaker = -int(success_rate * 100)
+                # Use negative UCB score so higher UCB = higher priority
+                tie_breaker = -int(ucb_score * 100)
 
                 counter += 1
                 heapq.heappush(frontier, (f_value, tie_breaker, counter, child))
@@ -426,6 +486,92 @@ def reconstruct_path(state: PuzzleState) -> List[str]:
     return path
 
 
+# --- Modified wrappers to collect stats ---
+def run_with_stats(strategy_name: str, initial_state: PuzzleState) -> int:
+    """
+    Runs a search and returns the number of nodes traversed.
+    """
+    nodes_traversed = 0
+
+    if strategy_name == "A*":
+        explored = set()
+        frontier = []
+        frontier_set = set()
+        counter = 0
+
+        f_value = initial_state.cost + heuristic(initial_state)
+        heapq.heappush(frontier, (f_value, counter, initial_state))
+        frontier_set.add(initial_state)
+
+        while frontier:
+            _, _, node = heapq.heappop(frontier)
+            frontier_set.discard(node)
+            nodes_traversed += 1
+
+            if goal_test(node):
+                return nodes_traversed
+
+            explored.add(node)
+
+            for _, child in successor_function(node):
+                if child not in explored and child not in frontier_set:
+                    counter += 1
+                    f_value = child.cost + heuristic(child)
+                    heapq.heappush(frontier, (f_value, counter, child))
+                    frontier_set.add(child)
+
+    elif strategy_name == "MEMORY_GUIDED":
+        # Modified Memory-Guided version that only counts nodes
+        import math
+
+        action_successes = {"UP": 0, "DOWN": 0, "LEFT": 0, "RIGHT": 0}
+        action_attempts = {"UP": 1, "DOWN": 1, "LEFT": 1, "RIGHT": 1}
+
+        frontier = []
+        explored = set()
+        frontier_set = set()
+        counter = 0
+
+        f_value = initial_state.cost + heuristic(initial_state)
+        heapq.heappush(frontier, (f_value, 0, counter, initial_state))
+        frontier_set.add(initial_state)
+
+        while frontier:
+            _, _, _, node = heapq.heappop(frontier)
+            frontier_set.discard(node)
+
+            nodes_traversed += 1
+            if goal_test(node):
+                return nodes_traversed
+
+            explored.add(node)
+
+            parent_h = heuristic(node)
+            successors = successor_function(node)
+
+            for action, child in successors:
+                if child not in explored and child not in frontier_set:
+                    child_h = heuristic(child)
+                    action_attempts[action] += 1
+                    if child_h < parent_h:
+                        action_successes[action] += 1
+
+                    total_attempts = sum(action_attempts.values())
+                    success_rate = action_successes[action] / action_attempts[action]
+                    exploration_bonus = math.sqrt(
+                        2 * math.log(total_attempts) / action_attempts[action]
+                    )
+                    ucb_score = success_rate + exploration_bonus
+                    tie_breaker = -int(ucb_score * 100)
+
+                    counter += 1
+                    f_value = child.cost + child_h
+                    heapq.heappush(frontier, (f_value, tie_breaker, counter, child))
+                    frontier_set.add(child)
+
+    return nodes_traversed
+
+
 # ------------------------------------------------------------
 # Main
 # ------------------------------------------------------------
@@ -439,8 +585,10 @@ if __name__ == "__main__":
     print("\nGoal State:")
     print(GOAL_STATE)
 
-    # Choose your strategy: "BFS", "DFS", "A*", or your own!
-    result = general_search("MEMORY_GUIDED", initial)
+    # Choose your strategy: "BFS", "DFS", "A*", or "MEMORY_GUIDED"!
+    result = general_search("A*", initial)
+
+    categories = ["Easy", "Medium", "Hard"]
 
     if result:
         path = reconstruct_path(result)
