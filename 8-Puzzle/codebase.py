@@ -599,3 +599,93 @@ if __name__ == "__main__":
         print(result)
     else:
         print(" No solution found.")
+
+
+
+import matplotlib.pyplot as plt
+
+# Difficulties and initial states
+difficulties = ["Easy", "Medium", "Hard"]
+initial_states = [EASY_INITIAL_STATE, MEDIUM_INITIAL_STATE, HARD_INITIAL_STATE]
+
+# Collect results
+chebyshev_memory_results = []
+astar_manhattan_results = []
+
+def run_astar_manhattan(state):
+    """Run standard A* with Manhattan heuristic and return nodes traversed."""
+    global heuristic
+    old_heuristic = heuristic
+    heuristic = heuristic_manhattan
+    nodes = run_with_stats("A*", state)
+    heuristic = old_heuristic
+    return nodes
+
+# Run experiments
+for state in initial_states:
+    nodes_mem = run_with_stats("MEMORY_GUIDED", state)
+    chebyshev_memory_results.append(nodes_mem)
+
+    nodes_astar = run_astar_manhattan(state)
+    astar_manhattan_results.append(nodes_astar)
+
+# Plotting
+plt.style.use('dark_background')
+fig, ax = plt.subplots(figsize=(11, 6))
+
+x = range(len(difficulties))
+width = 0.35
+
+# Color style from your uploaded image
+color_astar = "#dd8a47"          # orange
+color_memory = "#1f7bf2"         # blue
+
+bars1 = ax.bar(
+    [i - width/2 for i in x],
+    astar_manhattan_results,
+    width,
+    label="A* + Manhattan Heuristic",
+    color=color_astar
+)
+
+bars2 = ax.bar(
+    [i + width/2 for i in x],
+    chebyshev_memory_results,
+    width,
+    label="Memory-Guided A* + Chebyshev Heuristic",
+    color=color_memory
+)
+
+# Axes formatting
+ax.set_xticks(list(x))
+ax.set_xticklabels(difficulties, fontsize=13)
+ax.set_ylabel("Nodes Traversed", fontsize=13)
+ax.set_title(
+    "8-Puzzle Benchmark: A* vs Memory-Guided A* (by Nodes Traversed)",
+    fontsize=16,
+    pad=15
+)
+
+ax.legend(fontsize=12)
+
+# Add numeric labels above bars
+for bar in bars1 + bars2:
+    height = bar.get_height()
+    ax.text(
+        bar.get_x() + bar.get_width()/2,
+        height + (height * 0.03 + 1),
+        f"{height}",
+        ha='center',
+        va='bottom',
+        fontsize=12
+    )
+
+plt.tight_layout()
+plt.show()
+
+
+# ------------------------------------------------------------
+# Percentage Improvements
+# ------------------------------------------------------------
+
+
