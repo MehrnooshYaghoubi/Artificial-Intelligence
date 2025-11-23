@@ -42,8 +42,10 @@ class TSPSolver:
         if not self.cities:
             return ([], 0)
 
-        best_route = [None] 
-        best_distance = [float("inf")] # best_distance is a list becasue it can be updated inside backtrack without Python complaining about variable scope
+        best_route = [None]
+        best_distance = [
+            float("inf")
+        ]  # best_distance is a list becasue it can be updated inside backtrack without Python complaining about variable scope
 
         def backtrack(current_route, unvisited):
             """
@@ -89,29 +91,69 @@ class TSPSolver:
         """
         CSP approach: use forward checking to ensure each city is only visited once.
         """
+        if not self.cities:
+            return ([], 0)
 
-        def forward_check(route, domains):
-            for i in domains:
-                if i > len(route) - 1:
-                    domains[i] -= set(route)
+        best_route = [None]
+        best_distance = [float("inf")]
 
-        def backtrack(route, domains):
-            if len(route) == len(self.cities):
-                return route
+        def forward_check(current_route, domains):
+            """
+            Forward checking: remove visited cities from future domains.
 
-            for city in sorted(domains[len(route)]):
-                new_route = route + [city]
+            Args:
+                current_route: list of cities visited so far
+                domains: dict mapping position to set of available cities
+            """
+            visited = set(current_route)
+            position = len(current_route)
+
+            # Remove visited cities from all future positions
+            for pos in range(position, len(self.cities)):
+                domains[pos] -= visited
+
+            # Check for domain wipeout (empty domain = no solution possible)
+            for pos in range(position, len(self.cities)):
+                if not domains[pos]:
+                    return False
+            return True
+
+        def backtrack(current_route, domains):
+            """
+            Recursive backtracking with forward checking.
+
+            Args:
+                current_route: list of cities visited so far
+                domains: dict mapping position to set of available cities
+            """
+            # Base case: all cities visited
+            if len(current_route) == len(self.cities):
+                total_dist = self.total_distance(current_route)
+                if total_dist < best_distance[0]:
+                    best_distance[0] = total_dist
+                    best_route[0] = current_route[:]
+                return
+
+            position = len(current_route)
+
+            # Try each city available at this position
+            for city in sorted(domains[position]):
+                new_route = current_route + [city]
+
+                # Copy domains for this branch
                 new_domains = {i: domains[i].copy() for i in domains}
-                forward_check(new_route, new_domains)
-                result = backtrack(new_route, new_domains)
-                if result:
-                    return result
 
-            return None
+                # Apply forward checking
+                if forward_check(new_route, new_domains):
+                    backtrack(new_route, new_domains)
 
+        # Initialize domains: each position can have any city initially
         domains = {i: set(self.cities) for i in range(len(self.cities))}
-        route = backtrack([], domains)
-        return (route, self.total_distance(route)) if route else (None, float("inf"))
+        backtrack([], domains)
+
+        return (
+            (best_route[0], best_distance[0]) if best_route[0] else (None, float("inf"))
+        )
 
     # -------------------------------------------------------------------------
     # 3️ MVC (Minimum Remaining Constraints heuristic)
