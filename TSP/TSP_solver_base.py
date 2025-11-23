@@ -16,11 +16,9 @@ Each algorithm has a placeholder (TODO) you must complete.
 You should test and compare their performance on the same dataset.
 """
 
-import itertools
 import random
 import math
 import json
-import copy
 
 
 class TSPSolver:
@@ -35,6 +33,7 @@ class TSPSolver:
     # -------------------------------------------------------------------------
     # 1 Backtracking
     # -------------------------------------------------------------------------
+
     def solve_backtracking(self):
         """
         Explore all possible routes using recursive backtracking with pruning.
@@ -55,12 +54,13 @@ class TSPSolver:
                 current_route: list of cities visited so far
                 unvisited: set of cities not yet visited
             """
+
             # Base case: all cities visited
             if not unvisited:
                 # Calculate total distance for complete route
                 total_dist = self.total_distance(current_route)
 
-                # Update best route if this is better
+                # Update best route if this route is better
                 if total_dist < best_distance[0]:
                     best_distance[0] = total_dist
                     best_route[0] = current_route[:]
@@ -68,7 +68,7 @@ class TSPSolver:
 
             # Try visiting each unvisited city
             for next_city in unvisited:
-                # Pruning: estimate lower bound - skip if current path already exceeds best
+                # pruning: estimate lower bound - skip if current path already exceeds best
                 current_dist = self.total_distance(current_route + [next_city])
                 if current_dist >= best_distance[0]:
                     continue
@@ -87,6 +87,7 @@ class TSPSolver:
     # -------------------------------------------------------------------------
     # 2️ Forward Checking (CSP-based)
     # -------------------------------------------------------------------------
+
     def solve_forward_checking(self):
         """
         CSP approach: use forward checking to ensure each city is only visited once.
@@ -112,7 +113,7 @@ class TSPSolver:
             for pos in range(position, len(self.cities)):
                 domains[pos] -= visited
 
-            # Check for domain wipeout (empty domain = no solution possible)
+            # Check for domain (empty domain = no solution possible)
             for pos in range(position, len(self.cities)):
                 if not domains[pos]:
                     return False
@@ -158,63 +159,124 @@ class TSPSolver:
     # -------------------------------------------------------------------------
     # 3️ MVC (Minimum Remaining Constraints heuristic)
     # -------------------------------------------------------------------------
+
     def solve_mvc(self):
         """
-        Use Minimum Remaining Constraints heuristic to guide search.
+        Use Minimum Remaining Values heuristic to guide search.
         """
-
-        def select_mvc_variable(domains):
-            return min(domains, key=lambda k: len(domains[k]))
-
-        def backtrack(route, domains):
-            if len(route) == len(self.cities):
-                return route
-
-            position = select_mvc_variable(domains)
-
+        
+        if not self.cities:
+            return ([], 0)
+        
+        best_route = [None]
+        best_distance = [float('inf')]
+        
+        def backtrack(current_route, domains):
+            # Base case: all cities visited
+            if len(current_route) == len(self.cities):
+                total_dist = self.total_distance(current_route)
+                if total_dist < best_distance[0]:
+                    best_distance[0] = total_dist
+                    best_route[0] = current_route[:]
+                return
+            
+            # Select next position using MRV heuristic (minimum remaining values)
+            unassigned = {pos: domains[pos] for pos in domains if pos >= len(current_route)}
+            if not unassigned:
+                return
+            position = min(unassigned, key=lambda k: len(unassigned[k]))
+            
+            # Try each city at this position
             for city in sorted(domains[position]):
-                new_route = route + [city]
-                new_domains = {
-                    i: domains[i] - {city} for i in domains if i > len(new_route) - 1
-                }
-                result = backtrack(new_route, new_domains)
-                if result:
-                    return result
-
-            return None
-
+                new_route = current_route + [city]
+                
+                # Copy domains and remove assigned city from future positions
+                new_domains = {i: domains[i].copy() for i in domains}
+                new_domains[position] = {city}
+                
+                # Apply forward checking
+                visited = set(new_route)
+                for pos in range(len(new_route), len(self.cities)):
+                    new_domains[pos] -= visited
+                
+                # Check for domain wipeout
+                valid = True
+                for pos in range(len(new_route), len(self.cities)):
+                    if not new_domains[pos]:
+                        valid = False
+                        break
+                
+                if valid:
+                    backtrack(new_route, new_domains)
+        
+        # Initialize domains
         domains = {i: set(self.cities) for i in range(len(self.cities))}
-        route = backtrack([], domains)
-        return (route, self.total_distance(route)) if route else (None, float("inf"))
+        backtrack([], domains)
+        
+        return (best_route[0], best_distance[0]) if best_route[0] else (None, float('inf'))
 
     # -------------------------------------------------------------------------
     # 4️ MRV (Most Restricted Variable)
     # -------------------------------------------------------------------------
+
     def solve_mrv(self):
         """
         Use Most Restricted Variable heuristic to decide which city to assign next.
         """
-
-        def select_mrv_variable(domains):
-            return min(domains, key=lambda k: len(domains[k]))
-
+        if not self.cities:
+            return ([], 0)
+        
+        best_route = [None]
+        best_distance = [float('inf')]
+        
+        def backtrack(current_route, domains):
+            # Base case: all cities visited
+            if len(current_route) == len(self.cities):
+                total_dist = self.total_distance(current_route)
+                if total_dist < best_distance[0]:
+                    best_distance[0] = total_dist
+                    best_route[0] = current_route[:]
+                return
+            
+            # Select position with most restricted domain (MRV heuristic)
+            unassigned = {pos: domains[pos] for pos in domains if pos >= len(current_route)}
+            if not unassigned:
+                return
+            position = min(unassigned, key=lambda k: len(unassigned[k]))
+            
+            # Try each city at this position
+            for city in sorted(domains[position]):
+                new_route = current_route + [city]
+                
+                # Copy domains
+                new_domains = {i: domains[i].copy() for i in domains}
+                new_domains[position] = {city}
+                
+                # Forward checking: remove visited cities from future positions
+                visited = set(new_route)
+                for pos in range(len(new_route), len(self.cities)):
+                    new_domains[pos] -= visited
+                
+                # Check for domain wipeout
+                valid = True
+                for pos in range(len(new_route), len(self.cities)):
+                    if not new_domains[pos]:
+                        valid = False
+                        break
+                
+                if valid:
+                    backtrack(new_route, new_domains)
+        
+        # Initialize domains
         domains = {i: set(self.cities) for i in range(len(self.cities))}
-        route = []
-
-        while len(route) < len(self.cities):
-            position = select_mrv_variable(domains)
-            for city in domains[position]:
-                route.append(city)
-                break
-            for i in domains:
-                if i > len(route) - 1:
-                    domains[i] -= set(route)
-
-        return route, self.total_distance(route)
+        backtrack([], domains)
+        
+        return (best_route[0], best_distance[0]) if best_route[0] else (None, float('inf'))
 
     # -------------------------------------------------------------------------
     # 5️ Hill Climbing
     # -------------------------------------------------------------------------
+
     def solve_hill_climbing(self, max_iterations=1000):
         """
         Start with a random solution and iteratively move to a better neighbor.
@@ -250,6 +312,7 @@ class TSPSolver:
     # -------------------------------------------------------------------------
     # 6️ Simulated Annealing
     # -------------------------------------------------------------------------
+
     def solve_simulated_annealing(
         self, initial_temp=1000, cooling_rate=0.995, stop_temp=1
     ):
@@ -303,6 +366,7 @@ class TSPSolver:
     # -------------------------------------------------------------------------
     # 7️ Genetic Algorithm
     # -------------------------------------------------------------------------
+
     def solve_genetic(self, population_size=50, generations=200, mutation_rate=0.1):
         """
         Genetic Algorithm: evolve a population of routes to find a near-optimal solution.
@@ -377,6 +441,10 @@ class TSPSolver:
 
         return best_route, best_distance
 
+    # -------------------------------------------------------------------------
+    # 7️ Total Distance Calculation
+    # -------------------------------------------------------------------------
+
     def total_distance(self, path):
         """Compute total route distance (including return to start)."""
         total = 0
@@ -396,7 +464,7 @@ def load_data(file_path):
 
 
 if __name__ == "__main__":
-    cities, distances = load_data("sample.json")
+    cities, distances = load_data("sample_input.json")
     solver = TSPSolver(cities, distances)
 
     print("Choose Algorithm:")
