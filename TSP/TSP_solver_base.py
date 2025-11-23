@@ -39,6 +39,48 @@ class TSPSolver:
         """
         Explore all possible routes using recursive backtracking with pruning.
         """
+        if not self.cities:
+            return ([], 0)
+
+        best_route = [None] 
+        best_distance = [float("inf")] # best_distance is a list becasue it can be updated inside backtrack without Python complaining about variable scope
+
+        def backtrack(current_route, unvisited):
+            """
+            Recursive backtracking helper.
+
+            Args:
+                current_route: list of cities visited so far
+                unvisited: set of cities not yet visited
+            """
+            # Base case: all cities visited
+            if not unvisited:
+                # Calculate total distance for complete route
+                total_dist = self.total_distance(current_route)
+
+                # Update best route if this is better
+                if total_dist < best_distance[0]:
+                    best_distance[0] = total_dist
+                    best_route[0] = current_route[:]
+                return
+
+            # Try visiting each unvisited city
+            for next_city in unvisited:
+                # Pruning: estimate lower bound - skip if current path already exceeds best
+                current_dist = self.total_distance(current_route + [next_city])
+                if current_dist >= best_distance[0]:
+                    continue
+
+                # Recursive call: visit next_city
+                new_unvisited = unvisited - {next_city}
+                backtrack(current_route + [next_city], new_unvisited)
+
+        # Start backtracking from first city
+        current_route = [self.cities[0]]
+        unvisited = set(self.cities[1:])
+        backtrack(current_route, unvisited)
+
+        return (best_route[0], best_distance[0])
 
     # -------------------------------------------------------------------------
     # 2️ Forward Checking (CSP-based)
@@ -47,6 +89,7 @@ class TSPSolver:
         """
         CSP approach: use forward checking to ensure each city is only visited once.
         """
+
         def forward_check(route, domains):
             for i in domains:
                 if i > len(route) - 1:
@@ -68,7 +111,7 @@ class TSPSolver:
 
         domains = {i: set(self.cities) for i in range(len(self.cities))}
         route = backtrack([], domains)
-        return (route, self.total_distance(route)) if route else (None, float('inf'))
+        return (route, self.total_distance(route)) if route else (None, float("inf"))
 
     # -------------------------------------------------------------------------
     # 3️ MVC (Minimum Remaining Constraints heuristic)
@@ -77,6 +120,7 @@ class TSPSolver:
         """
         Use Minimum Remaining Constraints heuristic to guide search.
         """
+
         def select_mvc_variable(domains):
             return min(domains, key=lambda k: len(domains[k]))
 
@@ -88,7 +132,9 @@ class TSPSolver:
 
             for city in sorted(domains[position]):
                 new_route = route + [city]
-                new_domains = {i: domains[i] - {city} for i in domains if i > len(new_route) - 1}
+                new_domains = {
+                    i: domains[i] - {city} for i in domains if i > len(new_route) - 1
+                }
                 result = backtrack(new_route, new_domains)
                 if result:
                     return result
@@ -97,7 +143,7 @@ class TSPSolver:
 
         domains = {i: set(self.cities) for i in range(len(self.cities))}
         route = backtrack([], domains)
-        return (route, self.total_distance(route)) if route else (None, float('inf'))
+        return (route, self.total_distance(route)) if route else (None, float("inf"))
 
     # -------------------------------------------------------------------------
     # 4️ MRV (Most Restricted Variable)
@@ -106,6 +152,7 @@ class TSPSolver:
         """
         Use Most Restricted Variable heuristic to decide which city to assign next.
         """
+
         def select_mrv_variable(domains):
             return min(domains, key=lambda k: len(domains[k]))
 
@@ -135,13 +182,20 @@ class TSPSolver:
         current_distance = self.total_distance(current_solution)
 
         for _ in range(max_iterations):
-            neighbors = [current_solution[:i] + [current_solution[j]] + current_solution[i+1:j] + [current_solution[i]] + current_solution[j+1:]
-                         for i in range(len(current_solution)) for j in range(i + 1, len(current_solution))]
+            neighbors = [
+                current_solution[:i]
+                + [current_solution[j]]
+                + current_solution[i + 1 : j]
+                + [current_solution[i]]
+                + current_solution[j + 1 :]
+                for i in range(len(current_solution))
+                for j in range(i + 1, len(current_solution))
+            ]
 
             best_neighbor, best_distance = min(
                 ((neighbor, self.total_distance(neighbor)) for neighbor in neighbors),
                 key=lambda x: x[1],
-                default=(None, float('inf'))
+                default=(None, float("inf")),
             )
 
             if best_distance < current_distance:
@@ -154,10 +208,13 @@ class TSPSolver:
     # -------------------------------------------------------------------------
     # 6️ Simulated Annealing
     # -------------------------------------------------------------------------
-    def solve_simulated_annealing(self, initial_temp=1000, cooling_rate=0.995, stop_temp=1):
+    def solve_simulated_annealing(
+        self, initial_temp=1000, cooling_rate=0.995, stop_temp=1
+    ):
         """
         Simulated Annealing: probabilistically accept worse solutions to escape local minima.
         """
+
         def accept_probability(current_distance, neighbor_distance, temperature):
             """Calculate the probability of accepting a worse solution."""
             if neighbor_distance < current_distance:
@@ -178,11 +235,16 @@ class TSPSolver:
             # Generate a neighbor by swapping two cities
             i, j = random.sample(range(len(current_solution)), 2)
             neighbor_solution = current_solution[:]
-            neighbor_solution[i], neighbor_solution[j] = neighbor_solution[j], neighbor_solution[i]
+            neighbor_solution[i], neighbor_solution[j] = (
+                neighbor_solution[j],
+                neighbor_solution[i],
+            )
             neighbor_distance = self.total_distance(neighbor_solution)
 
             # Accept or reject the neighbor solution
-            if random.random() < accept_probability(current_distance, neighbor_distance, temperature):
+            if random.random() < accept_probability(
+                current_distance, neighbor_distance, temperature
+            ):
                 current_solution = neighbor_solution
                 current_distance = neighbor_distance
 
@@ -203,9 +265,13 @@ class TSPSolver:
         """
         Genetic Algorithm: evolve a population of routes to find a near-optimal solution.
         """
+
         def initialize_population():
             """Generate a random population of routes."""
-            return [random.sample(self.cities, len(self.cities)) for _ in range(population_size)]
+            return [
+                random.sample(self.cities, len(self.cities))
+                for _ in range(population_size)
+            ]
 
         def fitness(route):
             """Calculate fitness as the inverse of the total distance."""
@@ -243,7 +309,7 @@ class TSPSolver:
         population = initialize_population()
 
         best_route = None
-        best_distance = float('inf')
+        best_distance = float("inf")
 
         for _ in range(generations):
             new_population = []
