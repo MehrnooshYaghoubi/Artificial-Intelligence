@@ -163,8 +163,6 @@ class TSPSolver:
         return total
 
 
-
-
 # -------------------------------------------------------------------------
 # Input loader and main
 # -------------------------------------------------------------------------
@@ -178,33 +176,4 @@ if __name__ == "__main__":
     cities, distances = load_data("sample_input.json")
     solver = TSPSolver(cities, distances)
 
-    print("Choose Algorithm:")
-    print("1. Backtracking")
-    print("2. Forward Checking")
-    print("3. MVC")
-    print("4. MRV")
-    print("5. Hill Climbing")
-    print("6. Simulated Annealing")
-    print("7. Genetic Algorithm")
-
-    choice = input(" Your Algorithm Number: ")
-
-    if choice == "1":
-        result = solver.solve_backtracking()
-    elif choice == "2":
-        result = solver.solve_forward_checking()
-    elif choice == "3":
-        result = solver.solve_mvc()
-    elif choice == "4":
-        result = solver.solve_mrv()
-    elif choice == "5":
-        result = solver.solve_hill_climbing()
-    elif choice == "6":
-        result = solver.solve_simulated_annealing()
-    elif choice == "7":
-        result = solver.solve_genetic()
-    else:
-        print("Not Valid")
-        exit()
-
-    print("\nResult:", result)
+    print("\nResult:", solver.solve_simulated_annealing())
