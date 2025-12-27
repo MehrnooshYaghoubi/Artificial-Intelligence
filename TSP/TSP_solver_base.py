@@ -57,7 +57,7 @@ class TSPSolver:
 
             # Base case: all cities visited
             if not unvisited:
-                # Calculate total distance for complete route
+                # Calculate total distance S complete route
                 total_dist = self.total_distance(current_route)
 
                 # Update best route if this route is better

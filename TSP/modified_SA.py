@@ -2,7 +2,6 @@ import random
 import math
 import json
 
-
 class TSPSolver:
     def __init__(self, cities, distances):
         """

@@ -1,0 +1,16 @@
+dataset,kernel,params,accuracy,observation
+make_blobs,Linear,—,1.0,Perfect linear separation
+make_circles,Linear,—,0.537,Fails on nonlinear structure
+make_moons,Linear,—,0.87,Fails on nonlinear structure
+make_blobs,Polynomial,degree=2,1.0,Curvature unnecessary but works
+make_blobs,Polynomial,degree=3,1.0,Curvature unnecessary but works
+make_circles,Polynomial,degree=2,1.0,Adds global curvature; better than linear
+make_circles,Polynomial,degree=3,0.703,Adds global curvature; better than linear
+make_moons,Polynomial,degree=2,0.78,Adds global curvature; better than linear
+make_moons,Polynomial,degree=3,0.93,Adds global curvature; better than linear
+make_blobs,RBF,gamma=0.1,1.0,Smooth boundary; may underfit
+make_blobs,RBF,gamma=10,1.0,Flexible boundary; may overfit
+make_circles,RBF,gamma=0.1,1.0,Smooth boundary; may underfit
+make_circles,RBF,gamma=10,1.0,Flexible boundary; may overfit
+make_moons,RBF,gamma=0.1,0.863,Smooth boundary; may underfit
+make_moons,RBF,gamma=10,1.0,Flexible boundary; may overfit
