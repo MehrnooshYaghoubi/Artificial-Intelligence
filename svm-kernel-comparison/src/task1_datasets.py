@@ -1,6 +1,10 @@
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.datasets import make_blobs, make_circles, make_moons
+
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "outputs")
 
 np.random.seed(42)
 
@@ -54,5 +58,5 @@ for ax, (X, y, title) in zip(axes, datasets):
     ax.set_ylabel("x2")
 
 plt.tight_layout()
-plt.savefig("datasets_visualization.png")
+plt.savefig(os.path.join(OUTPUT_DIR, "datasets_visualization.png"))
 plt.show()

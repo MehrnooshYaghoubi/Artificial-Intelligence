@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -12,6 +14,8 @@ from sklearn.decomposition import PCA
 # =============================
 # Load Iris dataset
 # =============================
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "outputs")
+
 iris = load_iris()
 X = iris.data
 y = iris.target
@@ -60,7 +64,7 @@ disp = ConfusionMatrixDisplay(
 )
 disp.plot()
 plt.title("Confusion Matrix - SVM (OvA)")
-plt.savefig("cm.png", dpi=300, bbox_inches="tight")
+plt.savefig(os.path.join(OUTPUT_DIR, "cm.png"), dpi=300, bbox_inches="tight")
 plt.show()
 
 # =============================
@@ -84,5 +88,5 @@ plt.xlabel("PCA Component 1")
 plt.ylabel("PCA Component 2")
 plt.title("Iris Dataset - PCA Projection")
 plt.legend()
-plt.savefig("plot.png", dpi=300, bbox_inches="tight")
+plt.savefig(os.path.join(OUTPUT_DIR, "plot.png"), dpi=300, bbox_inches="tight")
 plt.show()

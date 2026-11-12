@@ -1,8 +1,12 @@
+import os
+
 import pandas as pd
 from tqdm import tqdm
-from task2 import run_task2
-from task3 import run_task3
-from task4 import run_task4
+from task2_linear_svm import run_task2
+from task3_polynomial_svm import run_task3
+from task4_rbf_svm import run_task4
+
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "outputs")
 
 def main():
     all_results = []
@@ -29,7 +33,7 @@ def main():
     print(df)
 
     # Export To CSV
-    df.to_csv("svm_summary.csv", index=False)
+    df.to_csv(os.path.join(OUTPUT_DIR, "svm_summary.csv"), index=False)
     print("\nSaved 'svm_summary.csv' and 'svm_summary.tex'")
 
 if __name__ == "__main__":

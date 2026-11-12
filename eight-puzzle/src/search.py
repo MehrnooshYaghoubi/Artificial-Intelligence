@@ -80,6 +80,27 @@ for i, tile in enumerate(GOAL_STATE):
     if tile != 0:
         GOAL_POSITIONS[tile] = divmod(i, 3)
 
+GOAL_BLANK_ROW, GOAL_BLANK_COL = divmod(GOAL_STATE.index(0), 3)
+
+
+def _sign(x: int) -> int:
+    return (x > 0) - (x < 0)
+
+
+def blank_context(state: "PuzzleState") -> Tuple[int, int]:
+    """
+    Bucket a board by where the blank sits relative to its goal position:
+    (row_sign, col_sign), each in {-1, 0, 1}.
+
+    An action like "UP" does not have one fixed value — moving the blank up
+    helps when the blank is below its goal, and hurts when it's above it.
+    Keying bandit statistics by this context (instead of by action alone)
+    is what makes the stats mean something: each context is a genuinely
+    different bandit problem, not noise averaged over unrelated situations.
+    """
+    row, col = divmod(state.tiles.index(0), 3)
+    return (_sign(row - GOAL_BLANK_ROW), _sign(col - GOAL_BLANK_COL))
+
 
 def successor_function(state: PuzzleState) -> List[Tuple[str, PuzzleState]]:
     """Return list of (action, next_state) pairs reachable from the given state."""
@@ -207,43 +228,49 @@ def heuristic(state: PuzzleState) -> int:
 
 def memory_guided_astar(initial_state: PuzzleState) -> Optional[PuzzleState]:
     """
-    MEMORY-GUIDED A*
+    MEMORY-GUIDED A* (contextual-bandit tie-breaking)
 
     A twist on A* with balanced exploration-exploitation!
 
-    The idea: Track which actions (UP/DOWN/LEFT/RIGHT) successfully reduce
-    the heuristic value, BUT use an "optimism bonus" for under-explored
-    actions. This is inspired by the UCB (Upper Confidence Bound) algorithm
-    used in multi-armed bandits and AlphaGo!
+    The idea: track which actions (UP/DOWN/LEFT/RIGHT) successfully reduce
+    the heuristic value, using an "optimism bonus" for under-explored
+    actions (UCB, as in multi-armed bandits / AlphaGo) -- BUT keep separate
+    statistics per blank_context(state) bucket (see its docstring). An
+    action's value genuinely depends on where the blank currently sits
+    relative to goal, so a single global counter per action would average
+    together situations where that same action helps and where it hurts,
+    which drowns the signal in noise. Bucketing by context makes each
+    (context, action) pair close to its own stationary bandit arm.
 
-    Formula: score = success_rate + exploration_bonus
-    where exploration_bonus = sqrt(2 * ln(total_attempts) / action_attempts)
+    Formula per context: score = success_rate + exploration_bonus
+    where exploration_bonus = sqrt(2 * ln(context_attempts) / action_attempts)
 
-    This ensures:
-    - Actions that work well are favored (exploitation)
-    - Under-tried actions get a chance (exploration)
-    - The balance shifts over time (adaptive)
-
-    It's like being optimistic about things you haven't tried much yet!
-
-    Benefits:
-    - Balances exploration and exploitation automatically
-    - Still optimal (only affects tie-breaking in A*)
-    - Simple yet theoretically grounded (UCB principle)
-    - Nobody else would think of this for 8-puzzle!
+    Note on optimality: this only affects *tie-breaking* among nodes with
+    equal f(n) -- it never overrides f(n) itself. Whether the overall
+    search is optimal still depends entirely on whether heuristic() is
+    admissible, independent of this mechanism.
     """
     import math
 
-    print("\nUsing MEMORY-GUIDED A* with UCB exploration!\n")
+    print("\nUsing MEMORY-GUIDED A* with contextual UCB exploration!\n")
 
-    # Track success rate of each action
-    action_successes = {"UP": 0, "DOWN": 0, "LEFT": 0, "RIGHT": 0}
-    action_attempts = {
-        "UP": 1,
-        "DOWN": 1,
-        "LEFT": 1,
-        "RIGHT": 1,
-    }  # Start at 1 to avoid division by zero
+    # context_stats[context][action] = {"attempts": int, "successes": int}
+    context_stats = {}
+
+    def stats_for(context):
+        if context not in context_stats:
+            context_stats[context] = {
+                action: {"attempts": 1, "successes": 0} for action in ACTIONS
+            }
+        return context_stats[context]
+
+    def ucb_score(context, action):
+        counts = stats_for(context)
+        total_attempts = sum(c["attempts"] for c in counts.values())
+        attempts = counts[action]["attempts"]
+        success_rate = counts[action]["successes"] / attempts
+        exploration_bonus = math.sqrt(2 * math.log(total_attempts) / attempts)
+        return success_rate + exploration_bonus
 
     frontier = []
     explored = set()
@@ -263,18 +290,17 @@ def memory_guided_astar(initial_state: PuzzleState) -> Optional[PuzzleState]:
 
         nodes_traversed += 1
 
-        # Show action statistics every 10 nodes
+        # Show action statistics every 10 nodes, for the node's own context
         if nodes_traversed % 10 == 0:
-            total_attempts = sum(action_attempts.values())
-            print(f"\n📊 Action Statistics after {nodes_traversed} nodes:")
+            context = blank_context(node)
+            counts = stats_for(context)
+            total_attempts = sum(c["attempts"] for c in counts.values())
+            print(f"\n📊 Action Statistics after {nodes_traversed} nodes (context={context}):")
             for action in ACTIONS:
-                success_rate = action_successes[action] / action_attempts[action]
-                exploration_bonus = math.sqrt(
-                    2 * math.log(total_attempts) / action_attempts[action]
-                )
-                ucb_score = success_rate + exploration_bonus
+                score = ucb_score(context, action)
                 print(
-                    f"  {action}: Success={success_rate:.2%} + Explore={exploration_bonus:.3f} = UCB={ucb_score:.3f}"
+                    f"  {action}: Success={counts[action]['successes'] / counts[action]['attempts']:.2%}"
+                    f" (n={counts[action]['attempts']}) UCB={score:.3f}"
                 )
 
         print(f"\nTraversed Node #{nodes_traversed}:")
@@ -285,48 +311,31 @@ def memory_guided_astar(initial_state: PuzzleState) -> Optional[PuzzleState]:
             print("\nGoal found!")
             print(f"Total Nodes Traversed: {nodes_traversed}")
             print(f"Total Nodes Expanded: {nodes_expanded}")
-
-            total_attempts = sum(action_attempts.values())
-            print("\nFinal Action Statistics:")
-            for action in ACTIONS:
-                success_rate = action_successes[action] / action_attempts[action]
-                exploration_bonus = math.sqrt(
-                    2 * math.log(total_attempts) / action_attempts[action]
-                )
-                print(
-                    f"  {action}: {success_rate:.2%} (tried {action_attempts[action]} times, bonus={exploration_bonus:.3f})"
-                )
+            print(f"\nContexts observed: {len(context_stats)}")
             return node
 
         explored.add(node)
 
         # Expand
         parent_h = heuristic(node)
+        parent_context = blank_context(node)
         successors = successor_function(node)
         nodes_expanded += 1
 
         for action, child in successors:
             if child not in explored and child not in frontier_set:
-                # Track if this action improved heuristic
+                # Track, in this context, whether this action improved the heuristic
                 child_h = heuristic(child)
-                action_attempts[action] += 1
+                counts = stats_for(parent_context)
+                counts[action]["attempts"] += 1
+                if child_h < parent_h:
+                    counts[action]["successes"] += 1
 
-                if child_h < parent_h:  # actually improve huristic
-                    action_successes[action] += 1
-
-                # Calculate priority with UCB
                 f_value = child.cost + child_h
-
-                # Calculate UCB score: success_rate + exploration_bonus
-                total_attempts = sum(action_attempts.values())
-                success_rate = action_successes[action] / action_attempts[action]
-                exploration_bonus = math.sqrt(
-                    2 * math.log(total_attempts) / action_attempts[action]
-                )
-                ucb_score = success_rate + exploration_bonus
+                score = ucb_score(parent_context, action)
 
                 # Use negative UCB score so higher UCB = higher priority
-                tie_breaker = -int(ucb_score * 100)
+                tie_breaker = -int(score * 100)
 
                 counter += 1
                 heapq.heappush(frontier, (f_value, tie_breaker, counter, child))
@@ -521,11 +530,27 @@ def run_with_stats(strategy_name: str, initial_state: PuzzleState) -> int:
                     frontier_set.add(child)
 
     elif strategy_name == "MEMORY_GUIDED":
-        # Modified Memory-Guided version that only counts nodes
+        # Modified Memory-Guided version that only counts nodes.
+        # Mirrors memory_guided_astar()'s contextual-bandit bucketing --
+        # see that function's docstring for why context matters.
         import math
 
-        action_successes = {"UP": 0, "DOWN": 0, "LEFT": 0, "RIGHT": 0}
-        action_attempts = {"UP": 1, "DOWN": 1, "LEFT": 1, "RIGHT": 1}
+        context_stats = {}
+
+        def stats_for(context):
+            if context not in context_stats:
+                context_stats[context] = {
+                    action: {"attempts": 1, "successes": 0} for action in ACTIONS
+                }
+            return context_stats[context]
+
+        def ucb_score(context, action):
+            counts = stats_for(context)
+            total_attempts = sum(c["attempts"] for c in counts.values())
+            attempts = counts[action]["attempts"]
+            success_rate = counts[action]["successes"] / attempts
+            exploration_bonus = math.sqrt(2 * math.log(total_attempts) / attempts)
+            return success_rate + exploration_bonus
 
         frontier = []
         explored = set()
@@ -547,22 +572,19 @@ def run_with_stats(strategy_name: str, initial_state: PuzzleState) -> int:
             explored.add(node)
 
             parent_h = heuristic(node)
+            parent_context = blank_context(node)
             successors = successor_function(node)
 
             for action, child in successors:
                 if child not in explored and child not in frontier_set:
                     child_h = heuristic(child)
-                    action_attempts[action] += 1
+                    counts = stats_for(parent_context)
+                    counts[action]["attempts"] += 1
                     if child_h < parent_h:
-                        action_successes[action] += 1
+                        counts[action]["successes"] += 1
 
-                    total_attempts = sum(action_attempts.values())
-                    success_rate = action_successes[action] / action_attempts[action]
-                    exploration_bonus = math.sqrt(
-                        2 * math.log(total_attempts) / action_attempts[action]
-                    )
-                    ucb_score = success_rate + exploration_bonus
-                    tie_breaker = -int(ucb_score * 100)
+                    score = ucb_score(parent_context, action)
+                    tie_breaker = -int(score * 100)
 
                     counter += 1
                     f_value = child.cost + child_h

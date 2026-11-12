@@ -1,8 +1,12 @@
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
-from task1 import X_blobs, y_blobs, X_circles, y_circles, X_moons, y_moons
+from task1_datasets import X_blobs, y_blobs, X_circles, y_circles, X_moons, y_moons
+
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "outputs")
 
 def plot_decision_boundary(model, X, y, title):
     """
@@ -53,7 +57,7 @@ def run_task2():
         # Plot
         plt.figure(figsize=(5, 4))
         plot_decision_boundary(model, X, y, f"Linear SVM on {name} (Accuracy={acc:.2f})")
-        plt.savefig(f"svm_{name}_decision_boundary.png")
+        plt.savefig(os.path.join(OUTPUT_DIR, f"svm_{name}_decision_boundary.png"))
         plt.close()  # Close figure to prevent display
 
         # Store results for Task 5

@@ -1,6 +1,7 @@
 import random
 import math
 import json
+import os
 
 class TSPSolver:
     def __init__(self, cities, distances):
@@ -172,7 +173,8 @@ def load_data(file_path):
 
 
 if __name__ == "__main__":
-    cities, distances = load_data("sample_input.json")
+    data_path = os.path.join(os.path.dirname(__file__), "..", "data", "sample_input.json")
+    cities, distances = load_data(data_path)
     solver = TSPSolver(cities, distances)
 
     print("\nResult:", solver.solve_simulated_annealing())

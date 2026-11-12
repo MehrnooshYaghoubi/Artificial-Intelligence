@@ -18,6 +18,7 @@ You should test and compare their performance on the same dataset.
 
 import random
 import math
+import os
 import json
 
 
@@ -464,7 +465,8 @@ def load_data(file_path):
 
 
 if __name__ == "__main__":
-    cities, distances = load_data("sample_input.json")
+    data_path = os.path.join(os.path.dirname(__file__), "..", "data", "sample_input.json")
+    cities, distances = load_data(data_path)
     solver = TSPSolver(cities, distances)
 
     print("Choose Algorithm:")

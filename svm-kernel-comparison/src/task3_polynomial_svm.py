@@ -1,8 +1,12 @@
+import os
+
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 import matplotlib.pyplot as plt
-from task2 import plot_decision_boundary
-from task1 import X_blobs, y_blobs, X_circles, y_circles, X_moons, y_moons
+from task2_linear_svm import plot_decision_boundary
+from task1_datasets import X_blobs, y_blobs, X_circles, y_circles, X_moons, y_moons
+
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "outputs")
 
 def run_task3():
     """
@@ -32,7 +36,7 @@ def run_task3():
             plt.figure(figsize=(5, 4))
             plot_decision_boundary(model, X, y,
                                    f"Polynomial SVM (degree={degree}) on {name} (Accuracy={acc:.2f})")
-            plt.savefig(f"svm_{name}_poly{degree}.png")
+            plt.savefig(os.path.join(OUTPUT_DIR, f"svm_{name}_poly{degree}.png"))
             plt.close()
 
             # Observation (simple)
